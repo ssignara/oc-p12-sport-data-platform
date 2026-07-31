@@ -30,3 +30,5 @@ postgres_data/
 redpanda_data/
 metabase_data/
 kestra_data/
+projet12-sport-data/metabase-backup/
+projet12-sport-data/metabase-backup-final/

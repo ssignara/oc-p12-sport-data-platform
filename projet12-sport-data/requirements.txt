@@ -1,0 +1,11 @@
+pandas
+openpyxl
+sqlalchemy
+psycopg2-binary
+python-dotenv
+kafka-python
+faker
+requests
+fastapi
+uvicorn
+soda-core-postgres==3.5.6

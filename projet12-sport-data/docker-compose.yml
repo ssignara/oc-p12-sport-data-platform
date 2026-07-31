@@ -1,0 +1,139 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: sport_postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: sport_redpanda
+    command:
+      - redpanda
+      - start
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+    restart: unless-stopped
+
+  sport_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: sport_app
+    depends_on:
+      - postgres
+      - redpanda
+    env_file:
+      - .env
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVER: ${KAFKA_BOOTSTRAP_SERVER}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+      PYTHONPATH: /app
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data/raw:/app/data/raw
+      - ./soda:/app/soda
+    restart: unless-stopped
+
+  soda:
+    build:
+      context: .
+      dockerfile: Dockerfile.soda
+    container_name: sport_soda
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    volumes:
+      - ./soda:/app/soda
+    profiles:
+      - quality
+
+  kestra:
+    image: kestra/kestra:latest
+    container_name: sport_kestra
+    command: server standalone
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - sport_app
+    env_file:
+      - .env
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+            driverClassName: org.postgresql.Driver
+            username: ${DB_USER}
+            password: ${DB_PASSWORD}
+
+        kestra:
+          server:
+            basic-auth:
+              enabled: true
+              username: ${KESTRA_USERNAME}
+              password: ${KESTRA_PASSWORD}
+
+          repository:
+            type: postgres
+          queue:
+            type: postgres
+          storage:
+            type: local
+            local:
+              basePath: "/app/storage"
+    volumes:
+      - kestra_storage:/app/storage
+    restart: unless-stopped
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: sport_metabase
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    volumes:
+      - metabase_data:/metabase-data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  kestra_storage:
+  metabase_data:
