@@ -32,3 +32,6 @@ metabase_data/
 kestra_data/
 projet12-sport-data/metabase-backup/
 projet12-sport-data/metabase-backup-final/
+cleanup_report.txt
+_protected/
+**/.DS_Store
